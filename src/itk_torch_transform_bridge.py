@@ -8,7 +8,7 @@ def itk_transform_bridge(image_fixed: "itk.Image", image_moving:"itk.Image", net
 
     # Create convert_back function
 
-    def convert_back(phi: "torch.Tensor") -> "itk.Transform"):
+    def convert_back(phi: "torch.Tensor") -> "itk.Transform":
         
         return itk.CompositeTransform(some_stuff)
 
