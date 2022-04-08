@@ -4,7 +4,8 @@ on: [push, pull_request]
 
 jobs:
   test-linux:
-    runs-on: [linux, windows]
+    runs-on: ubuntu-latest
+
     strategy:
       max-parallel: 5
 
