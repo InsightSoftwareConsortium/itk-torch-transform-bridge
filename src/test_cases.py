@@ -44,10 +44,10 @@ def test_setting_affine_parameters(filepath):
     print("[Min, Max] diff: [{}, {}]".format(diff_output.min(), diff_output.max()))
 
     # Write 
-    itk.imwrite(itk.GetImageFromArray(diff_output), "./output/diff.tif")
-    itk.imwrite(itk.GetImageFromArray(output_array_monai), "./output/output_monai.tif")
-    itk.imwrite(itk.GetImageFromArray(output_array_itk), "./output/output_itk.tif")
-    itk.imwrite(itk.GetImageFromArray(output_array_transformix), "./output/output_transformix.tif")
+    # itk.imwrite(itk.GetImageFromArray(diff_output), "./output/diff.tif")
+    # itk.imwrite(itk.GetImageFromArray(output_array_monai), "./output/output_monai.tif")
+    # itk.imwrite(itk.GetImageFromArray(output_array_itk), "./output/output_itk.tif")
+    # itk.imwrite(itk.GetImageFromArray(output_array_transformix), "./output/output_transformix.tif")
     ###########################################################################
 
 
@@ -108,16 +108,8 @@ def test_registration(fixed_filepath, moving_filepath):
     # MONAI seems to have different interpolation behavior at the borders, and
     # no option matches exactly ITK/Elastix. Hence, we pad to allow for direct
     # numerical comparison later at the outputs.
-    # fixed_image[:, :, :] = np.pad(fixed_image[1:-1, 1:-1, 1:-1], pad_width=1)
-    # moving_image[:, :, :] = np.pad(moving_image[1:-1, 1:-1, 1:-1], pad_width=1)
     fixed_image[:, :, :] = remove_border(fixed_image)
     moving_image[:, :, :] = remove_border(moving_image)
-
-    # Set spacing because the headers do not have the correct one
-    fixed_image.SetSpacing([2, 2, 2])
-    moving_image.SetSpacing([2, 2, 2])
-
-    print(fixed_image)
 
     # Default Affine Parameter Map
     parameter_object = itk.ParameterObject.New()
@@ -154,19 +146,19 @@ def test_registration(fixed_filepath, moving_filepath):
     print("MONAI equals result: ", np.allclose(output_array_monai, np.asarray(result_image)))
     print("MONAI equals ITK: ", np.allclose(output_array_monai, output_array_itk))
 
-    diff = output_array_monai - np.asarray(result_image)
-    itk.imwrite(itk.GetImageFromArray(diff), "./output/diff.tif")
-    itk.imwrite(itk.GetImageFromArray(output_array_monai), "./output/monai.tif")
-    itk.imwrite(itk.GetImageFromArray(output_array_itk), "./output/itk.tif")
-    itk.imwrite(itk.GetImageFromArray(itk.GetArrayFromImage(result_image)), "./output/result.tif")
+    # diff = output_array_monai - np.asarray(result_image)
+    # itk.imwrite(itk.GetImageFromArray(diff), "./output/diff.tif")
+    # itk.imwrite(itk.GetImageFromArray(output_array_monai), "./output/monai.tif")
+    # itk.imwrite(itk.GetImageFromArray(output_array_itk), "./output/itk.tif")
+    # itk.imwrite(itk.GetImageFromArray(itk.GetArrayFromImage(result_image)), "./output/result.tif")
 
-    transformed_image_itk = itk.GetImageFromArray(output_array_itk)
-    transformed_image_itk.SetSpacing(result_image.GetSpacing())
-    transformed_image_itk.SetOrigin(result_image.GetOrigin())
+    # transformed_image_itk = itk.GetImageFromArray(output_array_itk)
+    # transformed_image_itk.SetSpacing(result_image.GetSpacing())
+    # transformed_image_itk.SetOrigin(result_image.GetOrigin())
 
 
-    itk.imwrite(fixed_image, "./output/fixed_updated_spacing.nii.gz")
-    itk.imwrite(moving_image, "./output/moving_updated_spacing.nii.gz")
-    itk.imwrite(result_image, "./output/registered.nii.gz")
-    itk.imwrite(transformed_image_itk, "./output/transformed_itk.nii.gz")
+    # itk.imwrite(fixed_image, "./output/fixed_updated_spacing.nii.gz")
+    # itk.imwrite(moving_image, "./output/moving_updated_spacing.nii.gz")
+    # itk.imwrite(result_image, "./output/registered.nii.gz")
+    # itk.imwrite(transformed_image_itk, "./output/transformed_itk.nii.gz")
     ###########################################################################
