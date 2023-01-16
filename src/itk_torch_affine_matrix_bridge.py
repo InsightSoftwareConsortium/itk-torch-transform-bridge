@@ -53,14 +53,14 @@ def remove_border(image):
 
 def itk_to_monai_affine(image, matrix, translation, center_of_rotation=None):
     """
-    Converts an ITK affine matrix (3x3 matrix and translation vector) to a 
-    MONAI affine matrix.
+    Converts an ITK affine matrix (2x2 for 2D or 3x3 for 3D matrix and translation
+    vector) to a MONAI affine matrix.
     
     Args:
         image: The ITK image object. This is used to extract the spacing and 
                direction information.
-        matrix: The 3x3 ITK affine matrix.
-        translation: The 3-element ITK affine translation vector.
+        matrix: The 2x2 or 3x3 ITK affine matrix.
+        translation: The 2-element or 3-element ITK affine translation vector.
         center_of_rotation: The center of rotation. If provided, the affine 
                             matrix will be adjusted to account for the difference
                             between the center of the image and the center of rotation.
@@ -69,10 +69,10 @@ def itk_to_monai_affine(image, matrix, translation, center_of_rotation=None):
         A 4x4 MONAI affine matrix.
     """
 
-    # Create 4x4 affine matrix
+    # Create affine matrix that includes translation
     ndim = image.ndim
     affine_matrix = torch.eye(ndim+1, dtype=torch.float64)
-    affine_matrix[:ndim, :ndim] = torch.tensor(np.asarray(matrix, dtype=np.float64))
+    affine_matrix[:ndim, :ndim] = torch.tensor(matrix, dtype=torch.float64)
     affine_matrix[:ndim, ndim] = torch.tensor(translation, dtype=torch.float64) 
 
     # Adjust offset when center of rotation is different from center of the image
@@ -177,7 +177,7 @@ def create_itk_affine_from_parameters(image, translation=None, rotation=None,
     if translation:
         itk_transform.Translate(translation)
 
-    matrix = itk_transform.GetMatrix()
+    matrix = np.asarray(itk_transform.GetMatrix(), dtype=np.float64)
 
     return matrix, translation
 
@@ -209,7 +209,7 @@ def transform_affinely_with_transformix(image, translation, matrix, center_of_ro
     else:
         itk_transform.SetCenter(get_itk_image_center(image))
 
-    itk_transform.SetMatrix(matrix)
+    itk_transform.SetMatrix(itk.matrix_from_array(matrix))
     itk_transform.Translate(translation)
 
     # Transformix
@@ -234,7 +234,7 @@ def transform_affinely_with_itk(image, matrix, translation, center_of_rotation=N
         itk_transform.SetCenter(get_itk_image_center(image))
 
     # Set matrix and translation
-    itk_transform.SetMatrix(matrix)
+    itk_transform.SetMatrix(itk.matrix_from_array(matrix))
     itk_transform.Translate(translation)
 
     # Interpolator

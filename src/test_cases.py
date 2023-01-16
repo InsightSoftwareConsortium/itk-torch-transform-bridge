@@ -67,8 +67,7 @@ def test_arbitary_center_of_rotation(filepath):
     # ITK matrix (3x3 affine matrix)
     matrix = np.array([[0.55915995, 0.50344867, 0.43208387],
                        [0.01133669, 0.82088571, 0.86841365],
-                       [0.30478496, 0.94998986, 0.32742505]])
-    matrix = itk.matrix_from_array(matrix[:ndim, :ndim])
+                       [0.30478496, 0.94998986, 0.32742505]])[:ndim, :ndim]
     translation = [54.0, 2.7, -11.9][:ndim]
 
     # Spatial properties
@@ -136,7 +135,6 @@ def test_registration(fixed_filepath, moving_filepath):
 
     transform_parameters = np.array(parameter_map['TransformParameters'], dtype=float)
     matrix = transform_parameters[:ndim*ndim].reshape(ndim, ndim)
-    matrix = itk.matrix_from_array(matrix)
     translation = transform_parameters[-ndim:].tolist()
     
     # Resample using ITK 
