@@ -30,9 +30,6 @@ def test_setting_affine_parameters(filepath):
     affine_matrix_for_monai = itk_to_monai_affine(image, matrix=matrix, translation=translation)
     output_array_monai = monai_affine_resample(metatensor, affine_matrix=affine_matrix_for_monai)
 
-    # Transformix
-    output_array_transformix = transformix_affine_resample(image, matrix=matrix, translation=translation)
-
     ###########################################################################
     # Make sure that the array conversion of the inputs is the same 
     input_array_monai = metatensor_to_array(metatensor)
@@ -40,19 +37,16 @@ def test_setting_affine_parameters(filepath):
 
     # Compare outputs
     print("MONAI-ITK: ", np.allclose(output_array_monai, output_array_itk))
-    print("ITK-Transformix: ", np.allclose(output_array_itk, output_array_transformix))
 
     diff_output = output_array_monai - output_array_itk
     print("[Min, Max] MONAI: [{}, {}]".format(output_array_monai.min(), output_array_monai.max()))
     print("[Min, Max] ITK: [{}, {}]".format(output_array_itk.min(), output_array_itk.max()))
-    print("[Min, Max] Transformix: [{}, {}]".format(output_array_transformix.min(), output_array_transformix.max()))
     print("[Min, Max] diff: [{}, {}]".format(diff_output.min(), diff_output.max()))
 
     # Write 
     # itk.imwrite(itk.GetImageFromArray(diff_output), "./output/diff.tif")
     # itk.imwrite(itk.GetImageFromArray(output_array_monai), "./output/output_monai.tif")
     # itk.imwrite(itk.GetImageFromArray(output_array_itk), "./output/output_itk.tif")
-    # itk.imwrite(itk.GetImageFromArray(output_array_transformix), "./output/output_transformix.tif")
     ###########################################################################
 
 
@@ -86,9 +80,6 @@ def test_arbitary_center_of_rotation(filepath):
     affine_matrix_for_monai = itk_to_monai_affine(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
     output_array_monai = monai_affine_resample(metatensor, affine_matrix=affine_matrix_for_monai)
 
-    # Transformix
-    output_array_transformix = transformix_affine_resample(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
-
     # Make sure that the array conversion of the inputs is the same 
     input_array_monai = metatensor_to_array(metatensor)
     assert(np.array_equal(input_array_monai, np.asarray(image)))
@@ -96,77 +87,11 @@ def test_arbitary_center_of_rotation(filepath):
     ###########################################################################
     # Compare outputs
     print("MONAI-ITK: ", np.allclose(output_array_monai, output_array_itk))
-    print("ITK-Transformix: ", np.allclose(output_array_itk, output_array_transformix))
 
     diff_output = output_array_monai - output_array_itk
     print("[Min, Max] MONAI: [{}, {}]".format(output_array_monai.min(), output_array_monai.max()))
     print("[Min, Max] ITK: [{}, {}]".format(output_array_itk.min(), output_array_itk.max()))
     print("[Min, Max] diff: [{}, {}]".format(diff_output.min(), diff_output.max()))
-    ###########################################################################
-
-
-def test_registration(fixed_filepath, moving_filepath):
-    print("\nTEST: registration with direction different than identity")
-    # Read images
-    fixed_image = itk.imread(fixed_filepath, itk.F)
-    moving_image = itk.imread(moving_filepath, itk.F)
-    ndim = fixed_image.ndim
-
-    # MONAI seems to have different interpolation behavior at the borders, and
-    # no option matches exactly ITK/Elastix. Hence, we pad to allow for direct
-    # numerical comparison later at the outputs.
-    fixed_image[:] = remove_border(fixed_image)
-    moving_image[:] = remove_border(moving_image)
-
-    # Default Affine Parameter Map
-    parameter_object = itk.ParameterObject.New()
-    affine_parameter_map = parameter_object.GetDefaultParameterMap('affine', 4)
-    affine_parameter_map['ResampleInterpolator'] = ['FinalLinearInterpolator']
-    parameter_object.AddParameterMap(affine_parameter_map)
-
-    # Register 
-    result_image, result_transform_parameters = itk.elastix_registration_method(
-        fixed_image, moving_image, parameter_object=parameter_object)
-
-    # Extract useful transformation parameters
-    parameter_map = result_transform_parameters.GetParameterMap(0)
-
-    center_of_rotation = np.array(parameter_map['CenterOfRotationPoint'], dtype=float).tolist()
-
-    transform_parameters = np.array(parameter_map['TransformParameters'], dtype=float)
-    matrix = transform_parameters[:ndim*ndim].reshape(ndim, ndim)
-    translation = transform_parameters[-ndim:].tolist()
-    
-    # Resample using ITK 
-    output_array_itk = itk_affine_resample(moving_image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
-
-    # MONAI
-    metatensor = image_to_metatensor(moving_image)
-    affine_matrix_for_monai = itk_to_monai_affine(moving_image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
-    output_array_monai = monai_affine_resample(metatensor, affine_matrix=affine_matrix_for_monai)
-
-
-    ###########################################################################
-    # Compare outputs
-    print("ITK equals result: ", np.allclose(output_array_itk, np.asarray(result_image)))
-    print("MONAI equals result: ", np.allclose(output_array_monai, np.asarray(result_image)))
-    print("MONAI equals ITK: ", np.allclose(output_array_monai, output_array_itk))
-
-    # diff = output_array_monai - np.asarray(result_image)
-    # itk.imwrite(itk.GetImageFromArray(diff), "./output/diff.tif")
-    # itk.imwrite(itk.GetImageFromArray(output_array_monai), "./output/monai.tif")
-    # itk.imwrite(itk.GetImageFromArray(output_array_itk), "./output/itk.tif")
-    # itk.imwrite(itk.GetImageFromArray(itk.GetArrayFromImage(result_image)), "./output/result.tif")
-
-    # transformed_image_itk = itk.GetImageFromArray(output_array_itk)
-    # transformed_image_itk.SetSpacing(result_image.GetSpacing())
-    # transformed_image_itk.SetOrigin(result_image.GetOrigin())
-
-
-    # itk.imwrite(fixed_image, "./output/fixed_updated_spacing.nii.gz")
-    # itk.imwrite(moving_image, "./output/moving_updated_spacing.nii.gz")
-    # itk.imwrite(result_image, "./output/registered.nii.gz")
-    # itk.imwrite(transformed_image_itk, "./output/transformed_itk.nii.gz")
     ###########################################################################
 
 
@@ -205,9 +130,6 @@ def test_monai_to_itk(filepath):
     metatensor = image_to_metatensor(image)
     output_array_monai = monai_affine_resample(metatensor, affine_matrix=affine_matrix)
 
-    # Transformix
-    output_array_transformix = transformix_affine_resample(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
-
     # Make sure that the array conversion of the inputs is the same 
     input_array_monai = metatensor_to_array(metatensor)
     assert(np.array_equal(input_array_monai, np.asarray(image)))
@@ -215,12 +137,10 @@ def test_monai_to_itk(filepath):
     ###########################################################################
     # Compare outputs
     print("MONAI-ITK: ", np.allclose(output_array_monai, output_array_itk))
-    print("ITK-Transformix: ", np.allclose(output_array_itk, output_array_transformix))
 
     diff_output = output_array_monai - output_array_itk
     print("[Min, Max] MONAI: [{}, {}]".format(output_array_monai.min(), output_array_monai.max()))
     print("[Min, Max] ITK: [{}, {}]".format(output_array_itk.min(), output_array_itk.max()))
-    print("[Min, Max] Transformix: [{}, {}]".format(output_array_transformix.min(), output_array_transformix.max()))
     print("[Min, Max] diff: [{}, {}]".format(diff_output.min(), diff_output.max()))
     ###########################################################################
 

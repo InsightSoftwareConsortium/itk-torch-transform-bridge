@@ -234,47 +234,6 @@ def create_itk_affine_from_parameters(image, translation=None, rotation=None,
     return matrix, translation
 
 
-def transformix_affine_resample(image, translation, matrix, center_of_rotation=None):
-    sz = tuple([str(e) for e in image.GetLargestPossibleRegion().GetSize()])
-    spacing = tuple([str(e) for e in image.GetSpacing()])
-    direction = tuple([str(e) for e in np.asarray(image.GetDirection()).flatten()])
-    origin = tuple([str(e) for e in np.asarray(image.GetOrigin()).flatten()])
-    index = tuple([str(e) for e in np.zeros(image.ndim, dtype=np.int32)])
-
-    parameter_map = {
-                    "Direction": direction,
-                    "Index": index, 
-                    "Origin": origin, 
-                    "Size": sz,
-                    "Spacing": spacing,
-                    "ResampleInterpolator": ("FinalLinearInterpolator", )
-                    }
-
-    parameter_object = itk.ParameterObject.New()
-    parameter_object.AddParameterMap(parameter_map) 
-
-    # Transform
-    itk_transform = itk.AffineTransform[itk.D, image.ndim].New()
-
-    if center_of_rotation:
-        itk_transform.SetCenter(center_of_rotation)
-    else:
-        itk_transform.SetCenter(get_itk_image_center(image))
-
-    itk_transform.SetMatrix(itk.matrix_from_array(matrix))
-    itk_transform.Translate(translation)
-
-    # Transformix
-    transformix_filter = itk.TransformixFilter[type(image)].New()
-    transformix_filter.SetMovingImage(image)
-    transformix_filter.SetTransformParameterObject(parameter_object)
-    transformix_filter.SetTransform(itk_transform)
-    transformix_filter.Update()
-    output_image = transformix_filter.GetOutput()
-
-    return np.asarray(output_image, dtype=np.float32) 
-
-
 def itk_affine_resample(image, matrix, translation, center_of_rotation=None):
     # Translation transform
     itk_transform = itk.AffineTransform[itk.D, image.ndim].New()
