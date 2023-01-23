@@ -23,15 +23,15 @@ def test_setting_affine_parameters(filepath):
 
     # ITK
     matrix, translation = create_itk_affine_from_parameters(image, translation=translation, rotation=rotation, scale=scale, shear=shear)
-    output_array_itk = transform_affinely_with_itk(image, matrix=matrix, translation=translation)
+    output_array_itk = itk_affine_resample(image, matrix=matrix, translation=translation)
 
     # MONAI
     metatensor = image_to_metatensor(image)
     affine_matrix_for_monai = itk_to_monai_affine(image, matrix=matrix, translation=translation)
-    output_array_monai = transform_affinely_with_monai(metatensor, affine_matrix=affine_matrix_for_monai)
+    output_array_monai = monai_affine_resample(metatensor, affine_matrix=affine_matrix_for_monai)
 
     # Transformix
-    output_array_transformix = transform_affinely_with_transformix(image, matrix=matrix, translation=translation)
+    output_array_transformix = transformix_affine_resample(image, matrix=matrix, translation=translation)
 
     ###########################################################################
     # Make sure that the array conversion of the inputs is the same 
@@ -79,15 +79,15 @@ def test_arbitary_center_of_rotation(filepath):
     image.SetOrigin(origin)
 
     # ITK
-    output_array_itk = transform_affinely_with_itk(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
+    output_array_itk = itk_affine_resample(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
 
     # MONAI
     metatensor = image_to_metatensor(image)
     affine_matrix_for_monai = itk_to_monai_affine(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
-    output_array_monai = transform_affinely_with_monai(metatensor, affine_matrix=affine_matrix_for_monai)
+    output_array_monai = monai_affine_resample(metatensor, affine_matrix=affine_matrix_for_monai)
 
     # Transformix
-    output_array_transformix = transform_affinely_with_transformix(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
+    output_array_transformix = transformix_affine_resample(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
 
     # Make sure that the array conversion of the inputs is the same 
     input_array_monai = metatensor_to_array(metatensor)
@@ -138,12 +138,12 @@ def test_registration(fixed_filepath, moving_filepath):
     translation = transform_parameters[-ndim:].tolist()
     
     # Resample using ITK 
-    output_array_itk = transform_affinely_with_itk(moving_image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
+    output_array_itk = itk_affine_resample(moving_image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
 
     # MONAI
     metatensor = image_to_metatensor(moving_image)
     affine_matrix_for_monai = itk_to_monai_affine(moving_image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
-    output_array_monai = transform_affinely_with_monai(metatensor, affine_matrix=affine_matrix_for_monai)
+    output_array_monai = monai_affine_resample(metatensor, affine_matrix=affine_matrix_for_monai)
 
 
     ###########################################################################
@@ -199,14 +199,14 @@ def test_monai_to_itk(filepath):
 
     # ITK
     matrix, translation = monai_to_itk_affine(image, affine_matrix=affine_matrix, center_of_rotation=center_of_rotation)
-    output_array_itk = transform_affinely_with_itk(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
+    output_array_itk = itk_affine_resample(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
 
     # MONAI
     metatensor = image_to_metatensor(image)
-    output_array_monai = transform_affinely_with_monai(metatensor, affine_matrix=affine_matrix)
+    output_array_monai = monai_affine_resample(metatensor, affine_matrix=affine_matrix)
 
     # Transformix
-    output_array_transformix = transform_affinely_with_transformix(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
+    output_array_transformix = transformix_affine_resample(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
 
     # Make sure that the array conversion of the inputs is the same 
     input_array_monai = metatensor_to_array(metatensor)

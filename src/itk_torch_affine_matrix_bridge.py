@@ -234,7 +234,7 @@ def create_itk_affine_from_parameters(image, translation=None, rotation=None,
     return matrix, translation
 
 
-def transform_affinely_with_transformix(image, translation, matrix, center_of_rotation=None):
+def transformix_affine_resample(image, translation, matrix, center_of_rotation=None):
     sz = tuple([str(e) for e in image.GetLargestPossibleRegion().GetSize()])
     spacing = tuple([str(e) for e in image.GetSpacing()])
     direction = tuple([str(e) for e in np.asarray(image.GetDirection()).flatten()])
@@ -275,7 +275,7 @@ def transform_affinely_with_transformix(image, translation, matrix, center_of_ro
     return np.asarray(output_image, dtype=np.float32) 
 
 
-def transform_affinely_with_itk(image, matrix, translation, center_of_rotation=None):
+def itk_affine_resample(image, matrix, translation, center_of_rotation=None):
     # Translation transform
     itk_transform = itk.AffineTransform[itk.D, image.ndim].New()
 
@@ -292,20 +292,17 @@ def transform_affinely_with_itk(image, matrix, translation, center_of_rotation=N
     # Interpolator
     image = image.astype(itk.D)
     interpolator = itk.LinearInterpolateImageFunction.New(image)
-    # interpolator = itk.NearestNeighborInterpolateImageFunction.New(image)
 
     # Resample with ITK
-    resampler = itk.ResampleImageFilter.New(image)
-    resampler.SetInterpolator(interpolator)
-    resampler.SetTransform(itk_transform)
-    resampler.SetOutputParametersFromImage(image)
-    resampler.Update()
-    output_image = resampler.GetOutput()
+    output_image = itk.resample_image_filter(image,
+                                             interpolator=interpolator,
+                                             transform=itk_transform,
+                                             output_parameters_from_image=image) 
 
     return np.asarray(output_image, dtype=np.float32)
 
 
-def transform_affinely_with_monai(metatensor, affine_matrix):
+def monai_affine_resample(metatensor, affine_matrix):
     monai_transform = Affine(affine=affine_matrix, padding_mode="zeros", dtype=torch.float64)
     output_tensor, output_affine = monai_transform(metatensor, mode='bilinear')
 
