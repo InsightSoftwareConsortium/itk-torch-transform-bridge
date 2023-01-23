@@ -50,6 +50,39 @@ def remove_border(image):
     """
     return np.pad(image[1:-1, 1:-1, 1:-1] if image.ndim==3 else image[1:-1, 1:-1],
                                               pad_width=1)
+            
+def compute_offset_matrix(image, center_of_rotation):
+    ndim = image.ndim
+    offset = np.asarray(get_itk_image_center(image)) - np.asarray(center_of_rotation)
+    offset_matrix = torch.eye(ndim+1, dtype=torch.float64)
+    offset_matrix[:ndim, ndim] = torch.tensor(offset, dtype=torch.float64)
+    inverse_offset_matrix = torch.eye(ndim+1, dtype=torch.float64)
+    inverse_offset_matrix[:ndim, ndim] = -torch.tensor(offset, dtype=torch.float64)
+
+    return offset_matrix, inverse_offset_matrix
+
+def compute_spacing_matrix(image):
+    ndim = image.ndim
+    spacing = np.asarray(image.GetSpacing(), dtype=np.float64)
+    spacing_matrix = torch.eye(ndim+1, dtype=torch.float64)
+    inverse_spacing_matrix = torch.eye(ndim+1, dtype=torch.float64)
+    for i, e in enumerate(spacing):
+        spacing_matrix[i, i] = e
+        inverse_spacing_matrix[i, i] = 1 / e
+
+    return spacing_matrix, inverse_spacing_matrix
+
+def compute_direction_matrix(image):
+    ndim = image.ndim
+    direction = itk.array_from_matrix(image.GetDirection())
+    direction_matrix = torch.eye(ndim+1, dtype=torch.float64) 
+    direction_matrix[:ndim, :ndim] = torch.tensor(direction, dtype=torch.float64)
+    inverse_direction = itk.array_from_matrix(image.GetInverseDirection())
+    inverse_direction_matrix = torch.eye(ndim+1, dtype=torch.float64) 
+    inverse_direction_matrix[:ndim, :ndim] = torch.tensor(inverse_direction, dtype=torch.float64)
+
+    return direction_matrix, inverse_direction_matrix
+
 
 def itk_to_monai_affine(image, matrix, translation, center_of_rotation=None):
     """
@@ -77,35 +110,18 @@ def itk_to_monai_affine(image, matrix, translation, center_of_rotation=None):
 
     # Adjust offset when center of rotation is different from center of the image
     if center_of_rotation:
-        offset = np.asarray(get_itk_image_center(image)) - np.asarray(center_of_rotation)
-        offset_matrix = torch.eye(ndim+1, dtype=torch.float64)
-        offset_matrix[:ndim, ndim] = torch.tensor(offset, dtype=torch.float64)
-        inverse_offset_matrix = torch.eye(ndim+1, dtype=torch.float64)
-        inverse_offset_matrix[:ndim, ndim] = -torch.tensor(offset, dtype=torch.float64)
-        
+        offset_matrix, inverse_offset_matrix = compute_offset_matrix(image, center_of_rotation)
         affine_matrix = inverse_offset_matrix @ affine_matrix @ offset_matrix
 
     # Adjust based on spacing. It is required because MONAI does not update the 
     # pixel array according to the spacing after a transformation. For example,
     # a rotation of 90deg for an image with different spacing along the two axis
     # will just rotate the image array by 90deg without also scaling accordingly.
-    spacing = np.asarray(image.GetSpacing(), dtype=np.float64)
-    spacing_matrix = torch.eye(ndim+1, dtype=torch.float64)
-    inverse_spacing_matrix = torch.eye(ndim+1, dtype=torch.float64)
-    for i, e in enumerate(spacing):
-        spacing_matrix[i, i] = e
-        inverse_spacing_matrix[i, i] = 1 / e
-    
+    spacing_matrix, inverse_spacing_matrix = compute_spacing_matrix(image)
     affine_matrix = inverse_spacing_matrix @ affine_matrix @ spacing_matrix 
 
     # Adjust direction
-    direction = itk.array_from_matrix(image.GetDirection())
-    direction_matrix = torch.eye(ndim+1, dtype=torch.float64) 
-    direction_matrix[:ndim, :ndim] = torch.tensor(direction, dtype=torch.float64)
-    inverse_direction = itk.array_from_matrix(image.GetInverseDirection())
-    inverse_direction_matrix = torch.eye(ndim+1, dtype=torch.float64) 
-    inverse_direction_matrix[:ndim, :ndim] = torch.tensor(inverse_direction, dtype=torch.float64)
-
+    direction_matrix, inverse_direction_matrix = compute_direction_matrix(image)
     affine_matrix = inverse_direction_matrix @ affine_matrix @ direction_matrix
 
     return affine_matrix
