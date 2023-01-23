@@ -168,3 +168,91 @@ def test_registration(fixed_filepath, moving_filepath):
     # itk.imwrite(result_image, "./output/registered.nii.gz")
     # itk.imwrite(transformed_image_itk, "./output/transformed_itk.nii.gz")
     ###########################################################################
+
+
+def test_monai_to_itk(filepath):
+    print("\nTEST: MONAI affine matrix -> ITK matrix + translation vector -> transform")
+    # Read image
+    image = itk.imread(filepath, itk.F)
+
+    image[:] = remove_border(image)
+    ndim = image.ndim
+
+    # MONAI affine matrix 
+    affine_matrix = torch.eye(ndim+1, dtype=torch.float64)
+    affine_matrix[:ndim, :ndim] = torch.tensor([[0.55915995, 0.50344867, 0.43208387],
+                                                [0.01133669, 0.82088571, 0.86841365],
+                                                [0.30478496, 0.94998986, 0.32742505]],
+                                                dtype=torch.float64)[:ndim, :ndim]
+
+    affine_matrix[:ndim, ndim] = torch.tensor([54.0, 2.7, -11.9],
+                                              dtype=torch.float64)[:ndim]
+
+    # Spatial properties
+    center_of_rotation = [-32.3, 125.1, 0.7][:ndim]
+    origin = [1.6, 0.5, 2.0][:ndim]
+    spacing = np.array([1.2, 1.5, 0.6])[:ndim]
+
+    image.SetSpacing(spacing)
+    image.SetOrigin(origin)
+
+
+    # ITK
+    matrix, translation = monai_to_itk_affine(image, affine_matrix=affine_matrix, center_of_rotation=center_of_rotation)
+    output_array_itk = transform_affinely_with_itk(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
+
+    # MONAI
+    metatensor = image_to_metatensor(image)
+    output_array_monai = transform_affinely_with_monai(metatensor, affine_matrix=affine_matrix)
+
+    # Transformix
+    output_array_transformix = transform_affinely_with_transformix(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
+
+    # Make sure that the array conversion of the inputs is the same 
+    input_array_monai = metatensor_to_array(metatensor)
+    assert(np.array_equal(input_array_monai, np.asarray(image)))
+    
+    ###########################################################################
+    # Compare outputs
+    print("MONAI-ITK: ", np.allclose(output_array_monai, output_array_itk))
+    print("ITK-Transformix: ", np.allclose(output_array_itk, output_array_transformix))
+
+    diff_output = output_array_monai - output_array_itk
+    print("[Min, Max] MONAI: [{}, {}]".format(output_array_monai.min(), output_array_monai.max()))
+    print("[Min, Max] ITK: [{}, {}]".format(output_array_itk.min(), output_array_itk.max()))
+    print("[Min, Max] Transformix: [{}, {}]".format(output_array_transformix.min(), output_array_transformix.max()))
+    print("[Min, Max] diff: [{}, {}]".format(diff_output.min(), diff_output.max()))
+    ###########################################################################
+
+
+def test_cyclic_conversion(filepath):
+    print("\nTEST: matrix + translation -> affine_matrix -> matrix + translation")
+    image = itk.imread(filepath, itk.F)
+    image[:] = remove_border(image)
+    ndim = image.ndim
+
+    # ITK matrix (3x3 affine matrix)
+    matrix = np.array([[2.90971094, 1.18297296, 2.60008784],
+                       [0.29416137, 0.10294283, 2.82302616],
+                       [1.70578374, 1.39706003, 2.54652029]])[:ndim, :ndim]
+
+    translation = [-29.05463245,  35.27116398,  48.58759597][:ndim]
+
+    # Spatial properties
+    center_of_rotation = [-27.84789587, -60.7871084 , 42.73501932][:ndim]
+    origin = [8.10416794, 5.4831944, 0.49211025][:ndim]
+    spacing = np.array([0.7, 3.2, 1.3])[:ndim]
+
+    image.SetSpacing(spacing)
+    image.SetOrigin(origin)
+
+    affine_matrix = itk_to_monai_affine(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation)
+
+    matrix_result, translation_result = monai_to_itk_affine(image, affine_matrix=affine_matrix, center_of_rotation=center_of_rotation) 
+
+    print("Matrix cyclic conversion: ", np.allclose(matrix, matrix_result))
+    print("Translation cyclic conversion: ", np.allclose(translation, translation_result))
+
+
+
+    

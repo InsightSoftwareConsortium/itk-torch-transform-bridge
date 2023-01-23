@@ -126,6 +126,42 @@ def itk_to_monai_affine(image, matrix, translation, center_of_rotation=None):
 
     return affine_matrix
 
+def monai_to_itk_affine(image, affine_matrix, center_of_rotation=None):
+    """
+    Converts a MONAI affine matrix an to ITK affine matrix (2x2 for 2D or 3x3 for
+    3D matrix and translation vector). See also 'itk_to_monai_affine'.
+    
+    Args:
+        image: The ITK image object. This is used to extract the spacing and 
+               direction information.
+        affine_matrix: The 3x3 for 2D or 4x4 for 3D MONAI affine matrix.
+        center_of_rotation: The center of rotation. If provided, the affine 
+                            matrix will be adjusted to account for the difference
+                            between the center of the image and the center of rotation.
+        
+    Returns:
+        The ITK matrix and the translation vector.
+    """
+    # Adjust direction
+    direction_matrix, inverse_direction_matrix = compute_direction_matrix(image)
+    affine_matrix = direction_matrix @ affine_matrix @ inverse_direction_matrix 
+
+    # Adjust spacing
+    spacing_matrix, inverse_spacing_matrix = compute_spacing_matrix(image)
+    affine_matrix = spacing_matrix @ affine_matrix @ inverse_spacing_matrix 
+
+    # Adjust offset when center of rotation is different from center of the image
+    if center_of_rotation:
+        offset_matrix, inverse_offset_matrix = compute_offset_matrix(image, center_of_rotation)
+        affine_matrix = offset_matrix @ affine_matrix @ inverse_offset_matrix
+
+    ndim = image.ndim
+    matrix = affine_matrix[:ndim, :ndim].numpy()
+    translation = affine_matrix[:ndim, ndim].tolist()
+
+    return matrix, translation 
+
+
     
 def get_itk_image_center(image):
     """
