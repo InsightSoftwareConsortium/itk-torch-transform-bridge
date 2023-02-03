@@ -173,6 +173,59 @@ def test_cyclic_conversion(filepath):
     print("Matrix cyclic conversion: ", np.allclose(matrix, matrix_result))
     print("Translation cyclic conversion: ", np.allclose(translation, translation_result))
 
+def test_use_reference_space(ref_filepath, filepath):
+    print("\nTEST: calculate affine matrix for an image based on a reference space")
+    # Read the images
+    image = itk.imread(filepath, itk.F)
+    image[:] = remove_border(image)
+    ndim = image.ndim
 
+    ref_image = itk.imread(ref_filepath, itk.F)
+
+    # Set arbitary origin, spacing, direction for both of the images
+    image.SetSpacing([1.2, 2.0, 1.7][:ndim])
+    ref_image.SetSpacing([1.9, 1.5, 1.3][:ndim])
+    
+    direction = np.eye(3, dtype=np.float64)
+    direction[0, 0] = 0.68
+    direction[1, 1] = 1.05
+    direction[2, 2] = 1.83
+    image.SetDirection(direction[:ndim, :ndim])
+
+    ref_direction = np.eye(3, dtype=np.float64)
+    ref_direction[0, 0] = 1.25
+    ref_direction[1, 1] = 0.99 
+    ref_direction[2, 2] = 1.50
+    ref_image.SetDirection(ref_direction[:ndim, :ndim])
+
+    image.SetOrigin([57.3, 102.0, -20.9][:ndim])
+    ref_image.SetOrigin([23.3, -0.5, 23.7][:ndim])
+
+    # Set affine parameters
+    matrix = np.array([[0.55915995, 0.50344867, 0.43208387],
+                       [0.01133669, 0.82088571, 0.86841365],
+                       [0.30478496, 0.94998986, 0.32742505]])[:ndim, :ndim]
+    translation = [54.0, 2.7, -11.9][:ndim]
+    center_of_rotation = [-32.3, 125.1, 0.7][:ndim]
+
+    # Resample using ITK 
+    output_array_itk = itk_affine_resample(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation, reference_image=ref_image)
+
+    # MONAI
+    metatensor = image_to_metatensor(image)
+    affine_matrix_for_monai = itk_to_monai_affine(image, matrix=matrix, translation=translation, center_of_rotation=center_of_rotation, reference_image=ref_image)
+    output_array_monai = monai_affine_resample(metatensor, affine_matrix=affine_matrix_for_monai)
+
+    # Compare outputs
+    print("MONAI equals ITK: ", np.allclose(output_array_monai, output_array_itk))
+
+    diff_output = output_array_monai - output_array_itk
+    print("[Min, Max] MONAI: [{}, {}]".format(output_array_monai.min(), output_array_monai.max()))
+    print("[Min, Max] ITK: [{}, {}]".format(output_array_itk.min(), output_array_itk.max()))
+    print("[Min, Max] diff: [{}, {}]".format(diff_output.min(), diff_output.max()))
+
+    itk.imwrite(itk.GetImageFromArray(diff_output), "./output/diff.tif")
+    itk.imwrite(itk.GetImageFromArray(output_array_monai), "./output/output_monai.tif")
+    itk.imwrite(itk.GetImageFromArray(output_array_itk), "./output/output_itk.tif")
 
     

@@ -83,8 +83,32 @@ def compute_direction_matrix(image):
 
     return direction_matrix, inverse_direction_matrix
 
+def compute_reference_space_affine_matrix(image, ref_image): 
+    ndim = ref_image.ndim
 
-def itk_to_monai_affine(image, matrix, translation, center_of_rotation=None):
+    # Spacing and direction as matrices
+    spacing_matrix, inv_spacing_matrix = [m[:ndim, :ndim].numpy() for m in compute_spacing_matrix(image)]
+    ref_spacing_matrix, ref_inv_spacing_matrix = [m[:ndim, :ndim].numpy() for m in compute_spacing_matrix(ref_image)]
+
+    direction_matrix, inv_direction_matrix = [m[:ndim, :ndim].numpy() for m in compute_direction_matrix(image)]
+    ref_direction_matrix, ref_inv_direction_matrix = [m[:ndim, :ndim].numpy() for m in compute_direction_matrix(ref_image)]
+
+    # Matrix calculation
+    matrix = ref_direction_matrix @ ref_spacing_matrix @ inv_direction_matrix @ inv_spacing_matrix 
+
+    # Offset calculation
+    pixel_offset = -1
+    image_size = np.asarray(ref_image.GetLargestPossibleRegion().GetSize(), np.float32)
+    translation =  (ref_direction_matrix @ ref_spacing_matrix - direction_matrix @ spacing_matrix) @ (image_size + pixel_offset) / 2 
+    translation += np.asarray(ref_image.GetOrigin()) -  np.asarray(image.GetOrigin())
+
+    # Convert matrix ITK matrix and translation to MONAI affine matrix
+    ref_affine_matrix = itk_to_monai_affine(image, matrix=matrix, translation=translation)
+
+    return ref_affine_matrix 
+
+
+def itk_to_monai_affine(image, matrix, translation, center_of_rotation=None, reference_image=None):
     """
     Converts an ITK affine matrix (2x2 for 2D or 3x3 for 3D matrix and translation
     vector) to a MONAI affine matrix.
@@ -97,13 +121,25 @@ def itk_to_monai_affine(image, matrix, translation, center_of_rotation=None):
         center_of_rotation: The center of rotation. If provided, the affine 
                             matrix will be adjusted to account for the difference
                             between the center of the image and the center of rotation.
+        reference_image: The coordinate space that matrix and translation were defined
+                         in respect to. If not supplied, the coordinate space of image
+                         is used. Note: it does not work properly when the direction
+                         matrix is non-diagonal.
         
     Returns:
         A 4x4 MONAI affine matrix.
     """
 
-    # Create affine matrix that includes translation
     ndim = image.ndim
+
+    # If there is a reference image, compute an affine matrix that maps the image space to the
+    # reference image space.
+    if reference_image:
+        reference_affine_matrix = compute_reference_space_affine_matrix(image, reference_image)
+    else:
+        reference_affine_matrix = torch.eye(ndim+1, dtype=torch.float64)
+
+    # Create affine matrix that includes translation
     affine_matrix = torch.eye(ndim+1, dtype=torch.float64)
     affine_matrix[:ndim, :ndim] = torch.tensor(matrix, dtype=torch.float64)
     affine_matrix[:ndim, ndim] = torch.tensor(translation, dtype=torch.float64) 
@@ -124,7 +160,7 @@ def itk_to_monai_affine(image, matrix, translation, center_of_rotation=None):
     direction_matrix, inverse_direction_matrix = compute_direction_matrix(image)
     affine_matrix = inverse_direction_matrix @ affine_matrix @ direction_matrix
 
-    return affine_matrix
+    return affine_matrix @ reference_affine_matrix
 
 def monai_to_itk_affine(image, affine_matrix, center_of_rotation=None):
     """
@@ -234,7 +270,7 @@ def create_itk_affine_from_parameters(image, translation=None, rotation=None,
     return matrix, translation
 
 
-def itk_affine_resample(image, matrix, translation, center_of_rotation=None):
+def itk_affine_resample(image, matrix, translation, center_of_rotation=None, reference_image=None):
     # Translation transform
     itk_transform = itk.AffineTransform[itk.D, image.ndim].New()
 
@@ -252,11 +288,14 @@ def itk_affine_resample(image, matrix, translation, center_of_rotation=None):
     image = image.astype(itk.D)
     interpolator = itk.LinearInterpolateImageFunction.New(image)
 
+    if not reference_image:
+        reference_image = image
+
     # Resample with ITK
     output_image = itk.resample_image_filter(image,
                                              interpolator=interpolator,
                                              transform=itk_transform,
-                                             output_parameters_from_image=image) 
+                                             output_parameters_from_image=reference_image) 
 
     return np.asarray(output_image, dtype=np.float32)
 
