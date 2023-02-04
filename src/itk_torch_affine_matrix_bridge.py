@@ -8,6 +8,33 @@ from monai.data.meta_tensor import MetaTensor
 from monai.transforms import EnsureChannelFirst
 from monai.utils import convert_to_dst_type
 
+def assert_itk_regions_match_array(image):
+    # Note: Make it more compact? Also, are there redundant checks?
+    largest_region = image.GetLargestPossibleRegion()
+    buffered_region = image.GetBufferedRegion()
+    requested_region = image.GetRequestedRegion()
+
+    largest_region_size = np.array(largest_region.GetSize())
+    buffered_region_size = np.array(buffered_region.GetSize()) 
+    requested_region_size = np.array(requested_region.GetSize()) 
+    array_size = np.array(image.shape)[::-1]
+
+    largest_region_index = np.array(largest_region.GetIndex())
+    buffered_region_index = np.array(buffered_region.GetIndex())
+    requested_region_index = np.array(requested_region.GetIndex())
+
+    indices_are_zeros = np.all(largest_region_index==0) and \
+                        np.all(buffered_region_index==0) and \
+                        np.all(requested_region_index==0)
+
+    sizes_match = np.array_equal(array_size, largest_region_size) and \
+                  np.array_equal(largest_region_size, buffered_region_size) and \
+                  np.array_equal(buffered_region_size, requested_region_size)
+
+    assert indices_are_zeros, "ITK-MONAI bridge: non-zero ITK region indices encountered"
+    assert sizes_match, "ITK-MONAI bridge: ITK regions should be of the same shape"
+
+
 def metatensor_to_array(metatensor):
     metatensor = metatensor.squeeze()
     metatensor = metatensor.permute(*torch.arange(metatensor.ndim - 1, -1, -1))
@@ -129,11 +156,14 @@ def itk_to_monai_affine(image, matrix, translation, center_of_rotation=None, ref
         A 4x4 MONAI affine matrix.
     """
 
+    assert_itk_regions_match_array(image)
     ndim = image.ndim
 
     # If there is a reference image, compute an affine matrix that maps the image space to the
     # reference image space.
     if reference_image:
+        assert_itk_regions_match_array(reference_image)
+        assert image.shape == reference_image.shape, "ITK-MONAI bridge: shape mismatch between image and reference image"
         reference_affine_matrix = compute_reference_space_affine_matrix(image, reference_image)
     else:
         reference_affine_matrix = torch.eye(ndim+1, dtype=torch.float64)
@@ -177,6 +207,8 @@ def monai_to_itk_affine(image, affine_matrix, center_of_rotation=None):
     Returns:
         The ITK matrix and the translation vector.
     """
+    assert_itk_regions_match_array(image)
+
     # Adjust spacing
     spacing_matrix, inverse_spacing_matrix = compute_spacing_matrix(image)
     affine_matrix = spacing_matrix @ affine_matrix @ inverse_spacing_matrix 
