@@ -163,6 +163,12 @@ def test_cyclic_conversion(filepath):
     origin = [8.10416794, 5.4831944, 0.49211025][:ndim]
     spacing = np.array([0.7, 3.2, 1.3])[:ndim]
 
+    direction = np.array([[1.02895588, 0.22791448, 0.02429561],
+                          [0.21927512, 1.28632268, -0.14932226],
+                          [0.47455613, 0.38534345, 0.98505633]],
+                          dtype=np.float64)
+    image.SetDirection(direction[:ndim, :ndim])
+
     image.SetSpacing(spacing)
     image.SetOrigin(origin)
 
@@ -186,16 +192,16 @@ def test_use_reference_space(ref_filepath, filepath):
     image.SetSpacing([1.2, 2.0, 1.7][:ndim])
     ref_image.SetSpacing([1.9, 1.5, 1.3][:ndim])
     
-    direction = np.eye(3, dtype=np.float64)
-    direction[0, 0] = 0.68
-    direction[1, 1] = 1.05
-    direction[2, 2] = 1.83
+    direction = np.array([[1.02895588, 0.22791448, 0.02429561],
+                          [0.21927512, 1.28632268, -0.14932226],
+                          [0.47455613, 0.38534345, 0.98505633]],
+                          dtype=np.float64)
     image.SetDirection(direction[:ndim, :ndim])
 
-    ref_direction = np.eye(3, dtype=np.float64)
-    ref_direction[0, 0] = 1.25
-    ref_direction[1, 1] = 0.99 
-    ref_direction[2, 2] = 1.50
+    ref_direction = np.array([[1.26032417, -0.19243174, 0.54877414],
+                              [0.31958275, 0.9543068, 0.2720827],
+                              [-0.24106769, -0.22344502, 0.9143302]],
+                              dtype=np.float64)
     ref_image.SetDirection(ref_direction[:ndim, :ndim])
 
     image.SetOrigin([57.3, 102.0, -20.9][:ndim])
@@ -223,9 +229,5 @@ def test_use_reference_space(ref_filepath, filepath):
     print("[Min, Max] MONAI: [{}, {}]".format(output_array_monai.min(), output_array_monai.max()))
     print("[Min, Max] ITK: [{}, {}]".format(output_array_itk.min(), output_array_itk.max()))
     print("[Min, Max] diff: [{}, {}]".format(diff_output.min(), diff_output.max()))
-
-    itk.imwrite(itk.GetImageFromArray(diff_output), "./output/diff.tif")
-    itk.imwrite(itk.GetImageFromArray(output_array_monai), "./output/output_monai.tif")
-    itk.imwrite(itk.GetImageFromArray(output_array_itk), "./output/output_itk.tif")
 
     

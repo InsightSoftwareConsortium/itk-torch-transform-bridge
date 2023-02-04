@@ -94,7 +94,7 @@ def compute_reference_space_affine_matrix(image, ref_image):
     ref_direction_matrix, ref_inv_direction_matrix = [m[:ndim, :ndim].numpy() for m in compute_direction_matrix(ref_image)]
 
     # Matrix calculation
-    matrix = ref_direction_matrix @ ref_spacing_matrix @ inv_direction_matrix @ inv_spacing_matrix 
+    matrix = ref_direction_matrix @ ref_spacing_matrix @ inv_spacing_matrix @ inv_direction_matrix 
 
     # Offset calculation
     pixel_offset = -1
@@ -123,8 +123,7 @@ def itk_to_monai_affine(image, matrix, translation, center_of_rotation=None, ref
                             between the center of the image and the center of rotation.
         reference_image: The coordinate space that matrix and translation were defined
                          in respect to. If not supplied, the coordinate space of image
-                         is used. Note: it does not work properly when the direction
-                         matrix is non-diagonal.
+                         is used.
         
     Returns:
         A 4x4 MONAI affine matrix.
@@ -149,16 +148,16 @@ def itk_to_monai_affine(image, matrix, translation, center_of_rotation=None, ref
         offset_matrix, inverse_offset_matrix = compute_offset_matrix(image, center_of_rotation)
         affine_matrix = inverse_offset_matrix @ affine_matrix @ offset_matrix
 
+    # Adjust direction
+    direction_matrix, inverse_direction_matrix = compute_direction_matrix(image)
+    affine_matrix = inverse_direction_matrix @ affine_matrix @ direction_matrix
+
     # Adjust based on spacing. It is required because MONAI does not update the 
     # pixel array according to the spacing after a transformation. For example,
     # a rotation of 90deg for an image with different spacing along the two axis
     # will just rotate the image array by 90deg without also scaling accordingly.
     spacing_matrix, inverse_spacing_matrix = compute_spacing_matrix(image)
     affine_matrix = inverse_spacing_matrix @ affine_matrix @ spacing_matrix 
-
-    # Adjust direction
-    direction_matrix, inverse_direction_matrix = compute_direction_matrix(image)
-    affine_matrix = inverse_direction_matrix @ affine_matrix @ direction_matrix
 
     return affine_matrix @ reference_affine_matrix
 
@@ -178,13 +177,13 @@ def monai_to_itk_affine(image, affine_matrix, center_of_rotation=None):
     Returns:
         The ITK matrix and the translation vector.
     """
-    # Adjust direction
-    direction_matrix, inverse_direction_matrix = compute_direction_matrix(image)
-    affine_matrix = direction_matrix @ affine_matrix @ inverse_direction_matrix 
-
     # Adjust spacing
     spacing_matrix, inverse_spacing_matrix = compute_spacing_matrix(image)
     affine_matrix = spacing_matrix @ affine_matrix @ inverse_spacing_matrix 
+
+    # Adjust direction
+    direction_matrix, inverse_direction_matrix = compute_direction_matrix(image)
+    affine_matrix = direction_matrix @ affine_matrix @ inverse_direction_matrix 
 
     # Adjust offset when center of rotation is different from center of the image
     if center_of_rotation:
